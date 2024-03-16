@@ -5,30 +5,30 @@ import (
 	"sync"
 )
 
-type Exchanger struct {
+type Exchanger[T any] struct {
 	mux         sync.RWMutex
 	subscribers map[string][]struct {
 		ctx context.Context
-		ch  chan<- any
+		ch  chan<- T
 	}
 }
 
-func NewExchanger() *Exchanger {
-	return &Exchanger{
+func NewExchanger[T any]() *Exchanger[T] {
+	return &Exchanger[T]{
 		subscribers: make(map[string][]struct {
 			ctx context.Context
-			ch  chan<- any
+			ch  chan<- T
 		}),
 	}
 }
 
-func (e *Exchanger) Subscribe(ctx context.Context, topic string, ch chan<- any) {
+func (e *Exchanger[T]) Subscribe(ctx context.Context, topic string, ch chan<- T) {
 	e.mux.Lock()
 	defer e.mux.Unlock()
 
 	e.subscribers[topic] = append(e.subscribers[topic], struct {
 		ctx context.Context
-		ch  chan<- any
+		ch  chan<- T
 	}{ctx: ctx, ch: ch})
 
 	go func() {
@@ -54,12 +54,12 @@ func (e *Exchanger) Subscribe(ctx context.Context, topic string, ch chan<- any) 
 	}()
 }
 
-func (e *Exchanger) Publish(topic string, data interface{}) {
+func (e *Exchanger[T]) Publish(topic string, data T) {
 	var (
 		ok         bool
 		collection []struct {
 			ctx context.Context
-			ch  chan<- any
+			ch  chan<- T
 		}
 	)
 
@@ -76,7 +76,7 @@ func (e *Exchanger) Publish(topic string, data interface{}) {
 			continue
 		case v.ch <- data:
 		default:
-			go func(ctx context.Context, ch chan<- any) {
+			go func(ctx context.Context, ch chan<- T) {
 				select {
 				case <-ctx.Done():
 				case ch <- data:
@@ -84,4 +84,18 @@ func (e *Exchanger) Publish(topic string, data interface{}) {
 			}(v.ctx, v.ch)
 		}
 	}
+}
+
+func (e *Exchanger[T]) TopicCount() int {
+	return len(e.subscribers)
+}
+
+func (e *Exchanger[T]) SubscriberCountOfTopic(topic string) int {
+	e.mux.RLock()
+	defer e.mux.RUnlock()
+
+	if _, ok := e.subscribers[topic]; ok {
+		return len(e.subscribers[topic])
+	}
+	return 0
 }
