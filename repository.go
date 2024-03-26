@@ -38,6 +38,10 @@ func (r *Repository[ModelType, PrimaryType]) Delete(id PrimaryType) error {
 	return r.db.Omit(clause.Associations).Delete(&r.model, id).Error
 }
 
+func (r *Repository[ModelType, PrimaryType]) DeleteIn(ids []PrimaryType) error {
+	return r.db.Omit(clause.Associations).Delete(&r.model, ids).Error
+}
+
 func (r *Repository[ModelType, PrimaryType]) DeleteByField(field string, value any) error {
 	builder := r.db.Omit(clause.Associations)
 	return r.buildWhereCondition(builder, field, value).Delete(&r.model).Error
@@ -59,6 +63,10 @@ func (r *Repository[ModelType, PrimaryType]) Update(id PrimaryType, field string
 	return r.db.Omit(clause.Associations).Model(&r.model).Where(fmt.Sprintf("`%s`=?", r.model.PrimaryKey()), id).Select(field).Update(field, value).Error
 }
 
+func (r *Repository[ModelType, PrimaryType]) UpdateIn(ids []PrimaryType, field string, value any) error {
+	return r.db.Omit(clause.Associations).Model(&r.model).Where(fmt.Sprintf("`%s` in ?", r.model.PrimaryKey()), ids).Select(field).Update(field, value).Error
+}
+
 func (r *Repository[ModelType, PrimaryType]) Updates(id PrimaryType, params map[string]any) error {
 	selectedFields := make([]any, 0, len(params))
 	for k := range params {
@@ -66,6 +74,19 @@ func (r *Repository[ModelType, PrimaryType]) Updates(id PrimaryType, params map[
 	}
 
 	builder := r.db.Omit(clause.Associations).Model(&r.model).Where(fmt.Sprintf("`%s`=?", r.model.PrimaryKey()), id)
+	if len(selectedFields) > 0 {
+		builder = builder.Select(selectedFields[0], selectedFields[1:]...)
+	}
+	return builder.Updates(params).Error
+}
+
+func (r *Repository[ModelType, PrimaryType]) UpdatesIn(ids []PrimaryType, params map[string]any) error {
+	selectedFields := make([]any, 0, len(params))
+	for k := range params {
+		selectedFields = append(selectedFields, k)
+	}
+
+	builder := r.db.Omit(clause.Associations).Model(&r.model).Where(fmt.Sprintf("`%s` in ?", r.model.PrimaryKey()), ids)
 	if len(selectedFields) > 0 {
 		builder = builder.Select(selectedFields[0], selectedFields[1:]...)
 	}
