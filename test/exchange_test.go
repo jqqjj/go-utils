@@ -9,7 +9,7 @@ import (
 )
 
 func TestExchanger(t *testing.T) {
-	e := utils.NewExchanger[any]()
+	e := utils.NewPubSub[any]()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx2, cancel2 := context.WithCancel(context.Background())

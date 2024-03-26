@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-type Exchanger[T any] struct {
+type PubSub[T any] struct {
 	mux         sync.RWMutex
 	subscribers map[string][]struct {
 		ctx context.Context
@@ -13,8 +13,8 @@ type Exchanger[T any] struct {
 	}
 }
 
-func NewExchanger[T any]() *Exchanger[T] {
-	return &Exchanger[T]{
+func NewPubSub[T any]() *PubSub[T] {
+	return &PubSub[T]{
 		subscribers: make(map[string][]struct {
 			ctx context.Context
 			ch  chan<- T
@@ -22,7 +22,7 @@ func NewExchanger[T any]() *Exchanger[T] {
 	}
 }
 
-func (e *Exchanger[T]) Subscribe(ctx context.Context, topic string, ch chan<- T) {
+func (e *PubSub[T]) Subscribe(ctx context.Context, topic string, ch chan<- T) {
 	e.mux.Lock()
 	defer e.mux.Unlock()
 
@@ -54,7 +54,7 @@ func (e *Exchanger[T]) Subscribe(ctx context.Context, topic string, ch chan<- T)
 	}()
 }
 
-func (e *Exchanger[T]) Publish(topic string, data T) {
+func (e *PubSub[T]) Publish(topic string, data T) {
 	var (
 		ok         bool
 		collection []struct {
@@ -86,11 +86,11 @@ func (e *Exchanger[T]) Publish(topic string, data T) {
 	}
 }
 
-func (e *Exchanger[T]) TopicCount() int {
+func (e *PubSub[T]) TopicCount() int {
 	return len(e.subscribers)
 }
 
-func (e *Exchanger[T]) SubscriberCountOfTopic(topic string) int {
+func (e *PubSub[T]) SubscriberCountOfTopic(topic string) int {
 	e.mux.RLock()
 	defer e.mux.RUnlock()
 
