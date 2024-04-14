@@ -3,6 +3,7 @@ package utils
 import (
 	"database/sql/driver"
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -55,4 +56,9 @@ func (j *JsonDate) UnmarshalJSON(data []byte) (err error) {
 	format := "2006-01-02"
 	j.Time, err = time.ParseInLocation(`"`+format+`"`, string(data), time.Local)
 	return
+}
+
+func (j JsonDate) EncodeValues(key string, val *url.Values) error {
+	val.Set(key, j.Format("2006-01-02"))
+	return nil
 }

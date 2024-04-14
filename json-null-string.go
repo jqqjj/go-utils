@@ -5,55 +5,65 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"net/url"
 )
 
 type JsonNullString sql.NullString
 
-func (v *JsonNullString) Scan(value interface{}) (err error) {
+func (j *JsonNullString) Scan(value interface{}) (err error) {
 	if value == nil {
-		v.String, v.Valid = "", false
+		j.String, j.Valid = "", false
 		return
 	}
 
 	switch value.(type) {
 	case string:
-		v.String = value.(string)
+		j.String = value.(string)
 	case []uint8:
-		v.String = string(value.([]uint8))
+		j.String = string(value.([]uint8))
 	default:
 		return errors.New("invalid value")
 	}
 
-	v.Valid = true
+	j.Valid = true
 	return
 }
 
-func (v JsonNullString) Value() (driver.Value, error) {
-	if !v.Valid {
+func (j JsonNullString) Value() (driver.Value, error) {
+	if !j.Valid {
 		return nil, nil
 	}
-	return v.String, nil
+	return j.String, nil
 }
 
-func (v JsonNullString) MarshalJSON() ([]byte, error) {
-	if v.Valid {
-		return json.Marshal(v.String)
+func (j JsonNullString) MarshalJSON() ([]byte, error) {
+	if j.Valid {
+		return json.Marshal(j.String)
 	} else {
 		return json.Marshal(nil)
 	}
 }
 
-func (v *JsonNullString) UnmarshalJSON(data []byte) error {
+func (j *JsonNullString) UnmarshalJSON(data []byte) error {
 	// Unmarshalling into a pointer will let us detect null
 	var x *string
 	if err := json.Unmarshal(data, &x); err != nil {
 		return err
 	}
 	if x != nil {
-		v.Valid = true
-		v.String = *x
+		j.Valid = true
+		j.String = *x
 	} else {
-		v.Valid = false
+		j.Valid = false
+	}
+	return nil
+}
+
+func (j JsonNullString) EncodeValues(key string, val *url.Values) error {
+	if j.Valid {
+		val.Set(key, j.String)
+	} else {
+		val.Set(key, "")
 	}
 	return nil
 }

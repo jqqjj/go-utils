@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -71,4 +72,13 @@ func (j *JsonNullDate) UnmarshalJSON(data []byte) (err error) {
 	}
 	j.Valid = true
 	return
+}
+
+func (j JsonNullDate) EncodeValues(key string, val *url.Values) error {
+	if j.Valid {
+		val.Set(key, j.Time.Format("2006-01-02"))
+	} else {
+		val.Set(key, "")
+	}
+	return nil
 }
