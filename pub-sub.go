@@ -5,30 +5,30 @@ import (
 	"sync"
 )
 
-type PubSub[T any] struct {
+type PubSub[TOPIC comparable, DATA any] struct {
 	mux         sync.RWMutex
-	subscribers map[string][]struct {
+	subscribers map[TOPIC][]struct {
 		ctx context.Context
-		ch  chan<- T
+		ch  chan<- DATA
 	}
 }
 
-func NewPubSub[T any]() *PubSub[T] {
-	return &PubSub[T]{
-		subscribers: make(map[string][]struct {
+func NewPubSub[TOPIC comparable, DATA any]() *PubSub[TOPIC, DATA] {
+	return &PubSub[TOPIC, DATA]{
+		subscribers: make(map[TOPIC][]struct {
 			ctx context.Context
-			ch  chan<- T
+			ch  chan<- DATA
 		}),
 	}
 }
 
-func (e *PubSub[T]) Subscribe(ctx context.Context, topic string, ch chan<- T) {
+func (e *PubSub[TOPIC, DATA]) Subscribe(ctx context.Context, topic TOPIC, ch chan<- DATA) {
 	e.mux.Lock()
 	defer e.mux.Unlock()
 
 	e.subscribers[topic] = append(e.subscribers[topic], struct {
 		ctx context.Context
-		ch  chan<- T
+		ch  chan<- DATA
 	}{ctx: ctx, ch: ch})
 
 	go func() {
@@ -54,12 +54,12 @@ func (e *PubSub[T]) Subscribe(ctx context.Context, topic string, ch chan<- T) {
 	}()
 }
 
-func (e *PubSub[T]) Publish(topic string, data T) {
+func (e *PubSub[TOPIC, DATA]) Publish(topic TOPIC, data DATA) {
 	var (
 		ok         bool
 		collection []struct {
 			ctx context.Context
-			ch  chan<- T
+			ch  chan<- DATA
 		}
 	)
 
@@ -76,7 +76,7 @@ func (e *PubSub[T]) Publish(topic string, data T) {
 			continue
 		case v.ch <- data:
 		default:
-			go func(ctx context.Context, ch chan<- T) {
+			go func(ctx context.Context, ch chan<- DATA) {
 				select {
 				case <-ctx.Done():
 				case ch <- data:
@@ -86,11 +86,11 @@ func (e *PubSub[T]) Publish(topic string, data T) {
 	}
 }
 
-func (e *PubSub[T]) TopicCount() int {
+func (e *PubSub[TOPIC, DATA]) TopicCount() int {
 	return len(e.subscribers)
 }
 
-func (e *PubSub[T]) SubscriberCountOfTopic(topic string) int {
+func (e *PubSub[TOPIC, DATA]) SubscriberCountOfTopic(topic TOPIC) int {
 	e.mux.RLock()
 	defer e.mux.RUnlock()
 

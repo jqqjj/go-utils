@@ -3,67 +3,65 @@ package test
 import (
 	"context"
 	"github.com/jqqjj/go-utils"
-	"log"
 	"testing"
 	"time"
 )
 
-func TestExchanger(t *testing.T) {
-	e := utils.NewPubSub[any]()
+type attachmentType string
+type AttachmentType = utils.EnumString[attachmentType]
 
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	ch := make(chan any)
-	ch2 := make(chan any)
+var (
+	AttachmentTypePhoto = utils.NewEnumString[attachmentType]("1")
+	AttachmentTypeVideo = utils.NewEnumString[attachmentType]("2")
+)
 
-	e.Publish("test", []byte("1"))
-	e.Publish("test", 1)
+func TestPubSub(t *testing.T) {
+	e := utils.NewPubSub[AttachmentType, []byte]()
 
-	e.Subscribe(ctx, "test", ch)
-	e.Subscribe(ctx2, "test2", ch2)
+	ctxPhoto, cancelPhoto := context.WithCancel(context.Background())
+	ctxVideo, cancelVideo := context.WithCancel(context.Background())
+	defer cancelPhoto()
+	defer cancelVideo()
 
-	e.Publish("test2", []byte("1"))
-	e.Publish("test", []byte("3"))
-	e.Publish("test", "4")
+	photo := make(chan []byte)
+	video := make(chan []byte)
 
-	go func() {
-		time.Sleep(time.Second * 2)
-		cancel()
-	}()
+	e.Publish(AttachmentTypePhoto, []byte("photo"))
+	e.Publish(AttachmentTypeVideo, []byte("video"))
 
-LOOP:
-	for {
-		select {
-		case <-ctx.Done():
-			break LOOP
-		case v := <-ch:
-			switch v.(type) {
-			case string:
-				log.Println("receive string:", v.(string))
-			case []byte:
-				log.Println("receive []byte:", string(v.([]byte)))
-			}
+	e.Subscribe(ctxPhoto, AttachmentTypePhoto, photo)
+	e.Subscribe(ctxVideo, AttachmentTypeVideo, video)
+
+	e.Publish(AttachmentTypePhoto, []byte("1"))
+	e.Publish(AttachmentTypePhoto, []byte("2"))
+	e.Publish(AttachmentTypeVideo, []byte("1"))
+	e.Publish(AttachmentTypeVideo, []byte("2"))
+	e.Publish(AttachmentTypeVideo, []byte("3"))
+	e.Publish(AttachmentTypePhoto, []byte("1"))
+
+	select {
+	case v := <-video:
+		if string(v) != "1" {
+			t.Error("0")
+			return
 		}
-	}
-
-	if e.TopicCount() != 1 {
-		t.Error("not match topic count")
+	default:
+		t.Error("0")
 		return
 	}
-	cancel2()
+
+	if e.SubscriberCountOfTopic(AttachmentTypeVideo) != 1 {
+		t.Error("1", e.SubscriberCountOfTopic(AttachmentTypeVideo))
+		return
+	}
+
+	cancelVideo()
+
 	time.Sleep(time.Second)
-	if e.TopicCount() != 0 {
-		t.Error("not match topic count 2")
+
+	if e.SubscriberCountOfTopic(AttachmentTypeVideo) != 0 {
+		t.Error("2", e.SubscriberCountOfTopic(AttachmentTypeVideo))
 		return
 	}
 
-	if e.SubscriberCountOfTopic("test") != 0 {
-		t.Error("not match subscribers")
-		return
-	}
-
-	if e.SubscriberCountOfTopic("test2") != 0 {
-		t.Error("not match subscribers 2")
-		return
-	}
 }
