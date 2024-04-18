@@ -3,9 +3,12 @@ package utils
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"errors"
+	"reflect"
 	"strconv"
+	"sync"
 )
+
+var enumInt sync.Map
 
 type EnumInt[T ~int] struct {
 	valid bool
@@ -33,46 +36,65 @@ func (e EnumInt[T]) MarshalJSON() ([]byte, error) {
 }
 
 func (e *EnumInt[T]) UnmarshalJSON(data []byte) error {
-	// Unmarshalling into a pointer will let us detect null
-	var x *int
-	if err := json.Unmarshal(data, &x); err != nil {
+	e.valid = false
+
+	var tmp *int
+	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
 	}
-	if x != nil {
-		e.valid = true
-		e.value = *x
-	} else {
-		e.valid = false
+
+	if tmp != nil {
+		var t T
+		if val, ok := enumInt.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
+			for _, v := range val.([]int) {
+				if *tmp == v {
+					e.valid = true
+					e.value = *tmp
+					break
+				}
+			}
+		}
 	}
+
 	return nil
 }
 
 func (e *EnumInt[T]) Scan(value interface{}) error {
+	e.valid = false
+
+	var tmp *int
 	switch value.(type) {
 	case int64:
-		e.value = int(value.(int64))
+		*tmp = int(value.(int64))
 	case int32:
-		e.value = int(value.(int32))
+		*tmp = int(value.(int32))
 	case int:
-		e.value = value.(int)
+		*tmp = value.(int)
 	case uint8:
-		e.value = int(value.(uint8))
+		*tmp = int(value.(uint8))
 	case []uint8:
-		if i, err := strconv.Atoi(string(value.([]uint8))); err != nil {
-			return err
-		} else {
-			e.value = i
+		if i, err := strconv.Atoi(string(value.([]uint8))); err == nil {
+			*tmp = i
 		}
 	case string:
-		if i, err := strconv.Atoi(value.(string)); err != nil {
-			return err
-		} else {
-			e.value = i
+		if i, err := strconv.Atoi(value.(string)); err == nil {
+			*tmp = i
 		}
-	default:
-		return errors.New("invalid value")
 	}
-	e.valid = true
+
+	if tmp != nil {
+		var t T
+		if val, ok := enumInt.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
+			for _, v := range val.([]int) {
+				if *tmp == v {
+					e.valid = true
+					e.value = *tmp
+					break
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -84,5 +106,10 @@ func (e EnumInt[T]) Value() (driver.Value, error) {
 }
 
 func NewEnumInt[T ~int](value int) EnumInt[T] {
+	var tmp T
+	tValue := reflect.ValueOf(&tmp)
+	k := tValue.Type().Elem().String()
+	val, _ := enumInt.LoadOrStore(k, []int{})
+	enumInt.Store(tValue.Type().Elem().String(), append(val.([]int), value))
 	return EnumInt[T]{valid: true, value: value}
 }

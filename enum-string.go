@@ -3,8 +3,11 @@ package utils
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"errors"
+	"reflect"
+	"sync"
 )
+
+var enumString sync.Map
 
 type EnumString[T ~string] struct {
 	valid bool
@@ -32,30 +35,53 @@ func (e EnumString[T]) MarshalJSON() ([]byte, error) {
 }
 
 func (e *EnumString[T]) UnmarshalJSON(data []byte) error {
-	// Unmarshalling into a pointer will let us detect null
-	var x *string
-	if err := json.Unmarshal(data, &x); err != nil {
+	e.valid = false
+
+	var tmp *string
+	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
 	}
-	if x != nil {
-		e.valid = true
-		e.value = *x
-	} else {
-		e.valid = false
+
+	if tmp != nil {
+		var t T
+		if val, ok := enumString.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
+			for _, v := range val.([]string) {
+				if *tmp == v {
+					e.valid = true
+					e.value = *tmp
+					break
+				}
+			}
+		}
 	}
+
 	return nil
 }
 
 func (e *EnumString[T]) Scan(value interface{}) error {
+	e.valid = false
+
+	var tmp *string
 	switch value.(type) {
 	case string:
-		e.value = value.(string)
+		*tmp = value.(string)
 	case []uint8:
-		e.value = string(value.([]byte))
-	default:
-		return errors.New("invalid value")
+		*tmp = string(value.([]byte))
 	}
-	e.valid = true
+
+	if tmp != nil {
+		var t T
+		if val, ok := enumString.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
+			for _, v := range val.([]string) {
+				if *tmp == v {
+					e.valid = true
+					e.value = *tmp
+					break
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -67,5 +93,9 @@ func (e EnumString[T]) Value() (driver.Value, error) {
 }
 
 func NewEnumString[T ~string](value string) EnumString[T] {
+	var tmp T
+	tValue := reflect.ValueOf(&tmp)
+	val, _ := enumString.LoadOrStore(tValue.Type().Elem().String(), []string{})
+	enumString.Store(tValue.Type().Elem().String(), append(val.([]string), value))
 	return EnumString[T]{valid: true, value: value}
 }
