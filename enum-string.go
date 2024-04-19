@@ -3,8 +3,10 @@ package utils
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"sync"
+	"unsafe"
 )
 
 var enumString sync.Map
@@ -43,7 +45,7 @@ func (e *EnumString[T]) UnmarshalJSON(data []byte) error {
 	}
 
 	if tmp != nil {
-		var t T
+		var t EnumString[T]
 		if val, ok := enumString.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
 			for _, v := range val.([]string) {
 				if *tmp == v {
@@ -70,7 +72,7 @@ func (e *EnumString[T]) Scan(value interface{}) error {
 	}
 
 	if tmp != nil {
-		var t T
+		var t EnumString[T]
 		if val, ok := enumString.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
 			for _, v := range val.([]string) {
 				if *tmp == v {
@@ -92,10 +94,37 @@ func (e EnumString[T]) Value() (driver.Value, error) {
 	return e.value, nil
 }
 
+func EnumStringParse[T any](value string) (T, error) {
+	var target T
+	var actual EnumString[string]
+
+	tTarget := reflect.ValueOf(&target)
+	tActual := reflect.ValueOf(&actual)
+	//判断内存布局是否一致
+	if tActual.Type().Elem().Kind() != tTarget.Type().Elem().Kind() ||
+		tActual.Type().Elem().Size() != tTarget.Type().Elem().Size() ||
+		tActual.Type().Elem().NumField() != tTarget.Type().Elem().NumField() {
+		return target, fmt.Errorf("type mismatch")
+	}
+
+	k := tTarget.Type().Elem().String()
+	if val, ok := enumString.LoadOrStore(k, []string{}); ok {
+		for _, v := range val.([]string) {
+			if value == v {
+				actual.valid = true
+				actual.value = value
+				target = *(*T)(unsafe.Pointer(&actual))
+				break
+			}
+		}
+	}
+	return target, nil
+}
+
 func NewEnumString[T ~string](value string) EnumString[T] {
-	var tmp T
-	tValue := reflect.ValueOf(&tmp)
-	val, _ := enumString.LoadOrStore(tValue.Type().Elem().String(), []string{})
-	enumString.Store(tValue.Type().Elem().String(), append(val.([]string), value))
+	var tmp EnumString[T]
+	k := reflect.ValueOf(&tmp).Type().Elem().String()
+	val, _ := enumString.LoadOrStore(k, []string{})
+	enumString.Store(k, append(val.([]string), value))
 	return EnumString[T]{valid: true, value: value}
 }

@@ -54,4 +54,15 @@ func TestEnum(t *testing.T) {
 		t.Fail()
 		return
 	}
+
+	parseInt, err := utils.EnumStringParse[Event3Type]("")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if !parseInt.Setted() || parseInt != Default3 || parseInt == ClickEvent3 {
+		t.Fail()
+		return
+	}
 }

@@ -3,9 +3,11 @@ package utils
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 	"sync"
+	"unsafe"
 )
 
 var enumInt sync.Map
@@ -44,7 +46,7 @@ func (e *EnumInt[T]) UnmarshalJSON(data []byte) error {
 	}
 
 	if tmp != nil {
-		var t T
+		var t EnumInt[T]
 		if val, ok := enumInt.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
 			for _, v := range val.([]int) {
 				if *tmp == v {
@@ -83,7 +85,7 @@ func (e *EnumInt[T]) Scan(value interface{}) error {
 	}
 
 	if tmp != nil {
-		var t T
+		var t EnumInt[T]
 		if val, ok := enumInt.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
 			for _, v := range val.([]int) {
 				if *tmp == v {
@@ -105,11 +107,46 @@ func (e EnumInt[T]) Value() (driver.Value, error) {
 	return int64(e.value), nil
 }
 
+func EnumIntParse[T any](value int) (T, error) {
+	var target T
+	var actual EnumInt[int]
+
+	tTarget := reflect.ValueOf(&target)
+	tActual := reflect.ValueOf(&actual)
+	//判断内存布局是否一致
+	if tActual.Type().Elem().Kind() != tTarget.Type().Elem().Kind() ||
+		tActual.Type().Elem().Size() != tTarget.Type().Elem().Size() ||
+		tActual.Type().Elem().NumField() != tTarget.Type().Elem().NumField() {
+		return target, fmt.Errorf("type mismatch")
+	}
+
+	k := tTarget.Type().Elem().String()
+	if val, ok := enumInt.LoadOrStore(k, []int{}); ok {
+		for _, v := range val.([]int) {
+			if value == v {
+				actual.valid = true
+				actual.value = value
+				target = *(*T)(unsafe.Pointer(&actual))
+				break
+			}
+		}
+	}
+	return target, nil
+}
+
+func EnumIntParseBytes[T any](value []byte) (T, error) {
+	var target T
+	var tmp *int
+	if err := json.Unmarshal(value, &tmp); err != nil {
+		return target, err
+	}
+	return EnumIntParse[T](*tmp)
+}
+
 func NewEnumInt[T ~int](value int) EnumInt[T] {
-	var tmp T
-	tValue := reflect.ValueOf(&tmp)
-	k := tValue.Type().Elem().String()
+	var tmp EnumInt[T]
+	k := reflect.ValueOf(&tmp).Type().Elem().String()
 	val, _ := enumInt.LoadOrStore(k, []int{})
-	enumInt.Store(tValue.Type().Elem().String(), append(val.([]int), value))
+	enumInt.Store(k, append(val.([]int), value))
 	return EnumInt[T]{valid: true, value: value}
 }
