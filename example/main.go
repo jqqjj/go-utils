@@ -26,5 +26,5 @@ func main() {
 		return
 	}
 
-	fmt.Println(parseInt.Setted(), parseInt == ClickEvent)
+	fmt.Println(parseInt.IsEmpty(), parseInt == ClickEvent)
 }

@@ -46,11 +46,11 @@ func TestEnum(t *testing.T) {
 		return
 	}
 
-	if !e1.Event.Setted() || !e1.Event1.Setted() || e1.Event2.Setted() || e1.Event3.Setted() {
+	if !e1.Event.IsEmpty() || !e1.Event1.IsEmpty() || e1.Event2.IsEmpty() || e1.Event3.IsEmpty() {
 		t.Fail()
 		return
 	}
-	if e1.Event4.Setted() || e1.Event5.Setted() || !e1.Event6.Setted() {
+	if e1.Event4.IsEmpty() || e1.Event5.IsEmpty() || !e1.Event6.IsEmpty() {
 		t.Fail()
 		return
 	}
@@ -61,7 +61,7 @@ func TestEnum(t *testing.T) {
 		return
 	}
 
-	if !parseInt.Setted() || parseInt != Default3 || parseInt == ClickEvent3 {
+	if !parseInt.IsEmpty() || parseInt != Default3 || parseInt == ClickEvent3 {
 		t.Fail()
 		return
 	}

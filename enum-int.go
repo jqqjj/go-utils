@@ -25,7 +25,7 @@ func (e *EnumInt[T]) Is(a EnumInt[T]) bool {
 	return e.valid == a.valid && e.value == a.value
 }
 
-func (e *EnumInt[T]) Setted() bool {
+func (e *EnumInt[T]) IsEmpty() bool {
 	return e.valid
 }
 

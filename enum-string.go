@@ -24,7 +24,7 @@ func (e *EnumString[T]) Is(a EnumString[T]) bool {
 	return e.valid == a.valid && e.value == a.value
 }
 
-func (e *EnumString[T]) Setted() bool {
+func (e *EnumString[T]) IsEmpty() bool {
 	return e.valid
 }
 
