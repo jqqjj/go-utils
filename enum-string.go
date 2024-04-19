@@ -66,9 +66,11 @@ func (e *EnumString[T]) Scan(value interface{}) error {
 	var tmp *string
 	switch value.(type) {
 	case string:
-		*tmp = value.(string)
+		local := value.(string)
+		tmp = &local
 	case []uint8:
-		*tmp = string(value.([]byte))
+		local := string(value.([]byte))
+		tmp = &local
 	}
 
 	if tmp != nil {

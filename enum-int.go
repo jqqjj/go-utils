@@ -67,20 +67,24 @@ func (e *EnumInt[T]) Scan(value interface{}) error {
 	var tmp *int
 	switch value.(type) {
 	case int64:
-		*tmp = int(value.(int64))
+		local := int(value.(int64))
+		tmp = &local
 	case int32:
-		*tmp = int(value.(int32))
+		local := int(value.(int32))
+		tmp = &local
 	case int:
-		*tmp = value.(int)
+		local := value.(int)
+		tmp = &local
 	case uint8:
-		*tmp = int(value.(uint8))
+		local := int(value.(uint8))
+		tmp = &local
 	case []uint8:
 		if i, err := strconv.Atoi(string(value.([]uint8))); err == nil {
-			*tmp = i
+			tmp = &i
 		}
 	case string:
 		if i, err := strconv.Atoi(value.(string)); err == nil {
-			*tmp = i
+			tmp = &i
 		}
 	}
 
