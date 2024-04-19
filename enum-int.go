@@ -26,7 +26,7 @@ func (e *EnumInt[T]) Is(a EnumInt[T]) bool {
 }
 
 func (e *EnumInt[T]) IsEmpty() bool {
-	return e.valid
+	return !e.valid
 }
 
 func (e EnumInt[T]) MarshalJSON() ([]byte, error) {
