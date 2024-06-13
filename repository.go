@@ -192,8 +192,7 @@ func (r Repository[ModelType, PrimaryType]) GetFirstByField(field string, value 
 		err error
 		m   ModelType
 	)
-	builder := r.buildPreloads(r.db, preloads...)
-	if err = builder.Where(r.buildWhereCondition(builder, field, value)).First(&m).Error; err != nil {
+	if err = r.buildWhereCondition(r.buildPreloads(r.db, preloads...), field, value).First(&m).Error; err != nil {
 		return nil, err
 	}
 	return &m, nil
@@ -212,6 +211,41 @@ func (r Repository[ModelType, PrimaryType]) GetFirstByConditions(conditions map[
 		return nil, err
 	}
 	return &m, err
+}
+
+func (r Repository[ModelType, PrimaryType]) GetFirstOrderByLimitOffset(orderBy string, limit, offset int, preloads ...string) (*ModelType, error) {
+	var (
+		err error
+		m   ModelType
+	)
+	err = r.buildOrderByLimitOffset(r.buildPreloads(r.db, preloads...), orderBy, limit, offset).First(&m).Error
+	return &m, err
+}
+
+func (r Repository[ModelType, PrimaryType]) GetFirstByFieldOrderByLimitOffset(field string, value any, orderBy string, limit, offset int, preloads ...string) (*ModelType, error) {
+	var (
+		err error
+		m   *ModelType
+	)
+	builder := r.buildPreloads(r.db, preloads...)
+	builder = r.buildWhereCondition(builder, field, value)
+	builder = r.buildOrderByLimitOffset(builder, orderBy, limit, offset)
+	err = builder.First(&m).Error
+	return m, err
+}
+
+func (r Repository[ModelType, PrimaryType]) GetFirstByConditionsOrderByLimitOffset(conditions map[string]any, orderBy string, limit, offset int, preloads ...string) (*ModelType, error) {
+	var (
+		err error
+		m   *ModelType
+	)
+	builder := r.buildPreloads(r.db, preloads...)
+	for k, v := range conditions {
+		builder = r.buildWhereCondition(builder, k, v)
+	}
+	builder = r.buildOrderByLimitOffset(builder, orderBy, limit, offset)
+	err = builder.First(&m).Error
+	return m, err
 }
 
 func (r Repository[ModelType, PrimaryType]) GetLast(preloads ...string) (*ModelType, error) {
@@ -249,6 +283,41 @@ func (r Repository[ModelType, PrimaryType]) GetLastByConditions(conditions map[s
 		return nil, err
 	}
 	return &m, err
+}
+
+func (r Repository[ModelType, PrimaryType]) GetLastOrderByLimitOffset(orderBy string, limit, offset int, preloads ...string) (*ModelType, error) {
+	var (
+		err error
+		m   ModelType
+	)
+	err = r.buildOrderByLimitOffset(r.buildPreloads(r.db, preloads...), orderBy, limit, offset).Last(&m).Error
+	return &m, err
+}
+
+func (r Repository[ModelType, PrimaryType]) GetLastByFieldOrderByLimitOffset(field string, value any, orderBy string, limit, offset int, preloads ...string) (*ModelType, error) {
+	var (
+		err error
+		m   *ModelType
+	)
+	builder := r.buildPreloads(r.db, preloads...)
+	builder = r.buildWhereCondition(builder, field, value)
+	builder = r.buildOrderByLimitOffset(builder, orderBy, limit, offset)
+	err = builder.Last(&m).Error
+	return m, err
+}
+
+func (r Repository[ModelType, PrimaryType]) GetLastByConditionsOrderByLimitOffset(conditions map[string]any, orderBy string, limit, offset int, preloads ...string) (*ModelType, error) {
+	var (
+		err error
+		m   *ModelType
+	)
+	builder := r.buildPreloads(r.db, preloads...)
+	for k, v := range conditions {
+		builder = r.buildWhereCondition(builder, k, v)
+	}
+	builder = r.buildOrderByLimitOffset(builder, orderBy, limit, offset)
+	err = builder.Last(&m).Error
+	return m, err
 }
 
 func (r Repository[ModelType, PrimaryType]) GetAll(preloads ...string) ([]*ModelType, error) {
