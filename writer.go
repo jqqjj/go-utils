@@ -17,6 +17,16 @@ func MustGetFileWriter(filePath string) io.Writer {
 	if err != nil {
 		panic(err)
 	}
-
 	return file
+}
+
+func MergeWriter(writers ...io.Writer) io.Writer {
+	switch len(writers) {
+	case 0:
+		return &NullWriter{}
+	case 1:
+		return writers[0]
+	default:
+		return io.MultiWriter(writers...)
+	}
 }
