@@ -16,11 +16,11 @@ func NewMap[K comparable, V any]() *Map[K, V] {
 	}
 }
 
-func (m *Map[K, V]) Get(key K) (V, bool) {
+func (m *Map[K, V]) Load(key K) (val V, loaded bool) {
 	m.RLock()
 	defer m.RUnlock()
-	val, ok := m.ent[key]
-	return val, ok
+	val, loaded = m.ent[key]
+	return
 }
 
 func (m *Map[K, V]) Len() int {
@@ -52,7 +52,19 @@ func (m *Map[K, V]) Range(fn func(K, V) bool) {
 	}
 }
 
-func (m *Map[K, V]) Set(key K, value V) {
+func (m *Map[K, V]) LoadOrStore(key K, value V) (val V, loaded bool) {
+	m.Lock()
+	defer m.Unlock()
+
+	if val, ok := m.ent[key]; ok {
+		return val, true
+	} else {
+		m.ent[key] = value
+		return value, false
+	}
+}
+
+func (m *Map[K, V]) Store(key K, value V) {
 	m.Lock()
 	defer m.Unlock()
 	m.ent[key] = value
@@ -64,7 +76,7 @@ func (m *Map[K, V]) Delete(key K) {
 
 	if _, ok := m.ent[key]; ok {
 		delete(m.ent, key)
-		m.shrinkLocked()
+		m.tryShrinkLocked()
 	}
 }
 
@@ -81,29 +93,39 @@ func (m *Map[K, V]) Deletes(keys ...K) {
 	}
 
 	if count > 0 {
-		m.shrinkLocked()
+		m.tryShrinkLocked()
 	}
 }
 
-func (m *Map[K, V]) LoadAndDelete(key K) (V, bool) {
+func (m *Map[K, V]) LoadAndDelete(key K) (val V, loaded bool) {
 	m.Lock()
 	defer m.Unlock()
 
 	if val, ok := m.ent[key]; ok {
 		delete(m.ent, key)
-		m.shrinkLocked()
-		return val, ok
+		m.tryShrinkLocked()
+		return val, true
 	}
 	var v V
 	return v, false
 }
 
-func (m *Map[K, V]) shrinkLocked() {
+func (m *Map[K, V]) Shrink() {
+	m.Lock()
+	defer m.Unlock()
+	m.shrinkLocked()
+}
+
+func (m *Map[K, V]) tryShrinkLocked() {
 	if rand.Intn(100) >= 90 {
-		newEnt := make(map[K]V)
-		for k, v := range m.ent {
-			newEnt[k] = v
-		}
-		m.ent = newEnt
+		m.shrinkLocked()
 	}
+}
+
+func (m *Map[K, V]) shrinkLocked() {
+	newEnt := make(map[K]V)
+	for k, v := range m.ent {
+		newEnt[k] = v
+	}
+	m.ent = newEnt
 }
