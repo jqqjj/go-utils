@@ -117,7 +117,7 @@ func (m *Map[K, V]) Shrink() {
 }
 
 func (m *Map[K, V]) tryShrinkLocked() {
-	if rand.Intn(100) >= 90 {
+	if rand.Intn(1000) >= 990 {
 		m.shrinkLocked()
 	}
 }
