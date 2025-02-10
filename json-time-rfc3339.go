@@ -34,11 +34,10 @@ func (j *JsonTimeRFC3339) Scan(value interface{}) error {
 }
 
 func (j JsonTimeRFC3339) Value() (driver.Value, error) {
-	var zeroTime time.Time
-	if time.Time(j).UnixNano() == zeroTime.UnixNano() {
+	if time.Time(j).IsZero() {
 		return nil, nil
 	}
-	return time.Time(j), nil
+	return time.Time(j).Format(time.RFC3339), nil
 }
 
 func (j JsonTimeRFC3339) MarshalJSON() ([]byte, error) {

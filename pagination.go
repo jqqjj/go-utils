@@ -10,7 +10,7 @@ type PaginationResponse[ResponseType any] struct {
 	Page    int             `json:"page"`
 	PerPage int             `json:"per_page"`
 	Total   int64           `json:"total"`
-	List    []*ResponseType `json:"list"`
+	Items   []*ResponseType `json:"list"`
 }
 
 type Pagination[ModelType IRepositoryModel, PrimaryType iRepositoryPrimaryKey, ResponseType any] struct {
@@ -137,6 +137,6 @@ func (p *Pagination[ModelType, PrimaryType, ResponseType]) Paginate(page, perPag
 		Page:    page,
 		PerPage: perPage,
 		Total:   count,
-		List:    collection,
+		Items:   collection,
 	}, nil
 }

@@ -40,7 +40,7 @@ func (j JsonTime) Value() (driver.Value, error) {
 	if j.Time.UnixNano() == zeroTime.UnixNano() {
 		return nil, nil
 	}
-	return j.Time, nil
+	return j.Time.Format(time.DateTime), nil
 }
 
 func (j JsonTime) MarshalJSON() ([]byte, error) {

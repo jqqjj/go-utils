@@ -43,7 +43,7 @@ func (j JsonNullTimeRFC3339) Value() (driver.Value, error) {
 	if !j.Valid {
 		return nil, nil
 	}
-	return j.Time, nil
+	return j.Time.Format(time.RFC3339), nil
 }
 
 func (j JsonNullTimeRFC3339) MarshalJSON() ([]byte, error) {
