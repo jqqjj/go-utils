@@ -30,7 +30,7 @@ func GetInternetTime() (time.Time, error) {
 	if err = json.Unmarshal(respData, &respTime); err != nil {
 		return time.Time{}, err
 	}
-	if now, err = time.ParseInLocation("2006-01-02 15:04:05", respTime.SysTime2, time.Local); err != nil {
+	if now, err = time.ParseInLocation(time.DateTime, respTime.SysTime2, time.Local); err != nil {
 		return time.Time{}, err
 	}
 	return now, nil

@@ -50,10 +50,9 @@ func (j JsonNullTime) MarshalJSON() ([]byte, error) {
 	if !j.Valid {
 		return json.Marshal(nil)
 	}
-	format := "2006-01-02 15:04:05"
-	b := make([]byte, 0, len(format)+2)
+	b := make([]byte, 0, len(time.DateTime)+2)
 	b = append(b, '"')
-	b = j.Time.AppendFormat(b, format)
+	b = j.Time.AppendFormat(b, time.DateTime)
 	b = append(b, '"')
 	return b, nil
 }
@@ -67,7 +66,7 @@ func (j *JsonNullTime) UnmarshalJSON(data []byte) (err error) {
 		j.Valid = false
 		return
 	}
-	if j.Time, err = time.ParseInLocation("2006-01-02 15:04:05", *s, time.Local); err != nil {
+	if j.Time, err = time.ParseInLocation(time.DateTime, *s, time.Local); err != nil {
 		return err
 	}
 	j.Valid = true
@@ -76,7 +75,7 @@ func (j *JsonNullTime) UnmarshalJSON(data []byte) (err error) {
 
 func (j JsonNullTime) EncodeValues(key string, val *url.Values) error {
 	if j.Valid {
-		val.Set(key, j.Time.Format("2006-01-02 15:04:05"))
+		val.Set(key, j.Time.Format(time.DateTime))
 	} else {
 		val.Set(key, "")
 	}

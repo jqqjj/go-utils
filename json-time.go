@@ -44,21 +44,19 @@ func (j JsonTime) Value() (driver.Value, error) {
 }
 
 func (j JsonTime) MarshalJSON() ([]byte, error) {
-	format := "2006-01-02 15:04:05"
-	b := make([]byte, 0, len(format)+2)
+	b := make([]byte, 0, len(time.DateTime)+2)
 	b = append(b, '"')
-	b = j.AppendFormat(b, format)
+	b = j.AppendFormat(b, time.DateTime)
 	b = append(b, '"')
 	return b, nil
 }
 
 func (j *JsonTime) UnmarshalJSON(data []byte) (err error) {
-	format := "2006-01-02 15:04:05"
-	j.Time, err = time.ParseInLocation(`"`+format+`"`, string(data), time.Local)
+	j.Time, err = time.ParseInLocation(`"`+time.DateTime+`"`, string(data), time.Local)
 	return
 }
 
 func (j JsonTime) EncodeValues(key string, val *url.Values) error {
-	val.Set(key, j.Time.Format("2006-01-02 15:04:05"))
+	val.Set(key, j.Time.Format(time.DateTime))
 	return nil
 }

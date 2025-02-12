@@ -169,7 +169,7 @@ func GormMapToEntity(m map[string]any, entity any) error {
 					case time.Time:
 						t = valUnknown.(time.Time)
 					case string:
-						if t, err = time.ParseInLocation("2006-01-02 15:04:05", valUnknown.(string), time.Local); err != nil {
+						if t, err = time.ParseInLocation(time.DateTime, valUnknown.(string), time.Local); err != nil {
 							return err
 						}
 					default:
