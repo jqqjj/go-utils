@@ -36,6 +36,9 @@ func (j *JsonDate) Scan(value interface{}) error {
 }
 
 func (j JsonDate) Value() (driver.Value, error) {
+	if j.Time.IsZero() {
+		return nil, nil
+	}
 	return j.Time.Format(time.DateOnly), nil
 }
 

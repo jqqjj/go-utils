@@ -36,6 +36,9 @@ func (j *JsonTimeMilli) Scan(value interface{}) error {
 }
 
 func (j JsonTimeMilli) Value() (driver.Value, error) {
+	if j.Time.IsZero() {
+		return nil, nil
+	}
 	return j.Time.Format("2006-01-02 15:04:05.000"), nil
 }
 

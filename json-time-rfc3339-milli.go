@@ -34,6 +34,9 @@ func (j *JsonTimeRFC3339Milli) Scan(value interface{}) error {
 }
 
 func (j JsonTimeRFC3339Milli) Value() (driver.Value, error) {
+	if time.Time(j).IsZero() {
+		return nil, nil
+	}
 	return time.Time(j).Format("2006-01-02T15:04:05.000Z07:00"), nil
 }
 

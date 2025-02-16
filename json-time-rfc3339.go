@@ -34,6 +34,9 @@ func (j *JsonTimeRFC3339) Scan(value interface{}) error {
 }
 
 func (j JsonTimeRFC3339) Value() (driver.Value, error) {
+	if time.Time(j).IsZero() {
+		return nil, nil
+	}
 	return time.Time(j).Format(time.RFC3339), nil
 }
 
