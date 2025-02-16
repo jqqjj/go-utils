@@ -36,10 +36,6 @@ func (j *JsonTime) Scan(value interface{}) error {
 }
 
 func (j JsonTime) Value() (driver.Value, error) {
-	var zeroTime time.Time
-	if j.Time.UnixNano() == zeroTime.UnixNano() {
-		return nil, nil
-	}
 	return j.Time.Format(time.DateTime), nil
 }
 

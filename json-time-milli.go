@@ -7,11 +7,11 @@ import (
 	"time"
 )
 
-type JsonDate struct {
+type JsonTimeMilli struct {
 	time.Time
 }
 
-func (j *JsonDate) Scan(value interface{}) error {
+func (j *JsonTimeMilli) Scan(value interface{}) error {
 	switch value.(type) {
 	case time.Time:
 		j.Time = value.(time.Time)
@@ -35,24 +35,24 @@ func (j *JsonDate) Scan(value interface{}) error {
 	}
 }
 
-func (j JsonDate) Value() (driver.Value, error) {
-	return j.Time.Format(time.DateOnly), nil
+func (j JsonTimeMilli) Value() (driver.Value, error) {
+	return j.Time.Format("2006-01-02 15:04:05.000"), nil
 }
 
-func (j JsonDate) MarshalJSON() ([]byte, error) {
-	b := make([]byte, 0, len(time.DateOnly)+2)
+func (j JsonTimeMilli) MarshalJSON() ([]byte, error) {
+	b := make([]byte, 0, len("2006-01-02 15:04:05.000")+2)
 	b = append(b, '"')
-	b = j.AppendFormat(b, time.DateOnly)
+	b = j.AppendFormat(b, "2006-01-02 15:04:05.000")
 	b = append(b, '"')
 	return b, nil
 }
 
-func (j *JsonDate) UnmarshalJSON(data []byte) (err error) {
-	j.Time, err = time.Parse(`"`+time.DateOnly+`"`, string(data))
+func (j *JsonTimeMilli) UnmarshalJSON(data []byte) (err error) {
+	j.Time, err = time.ParseInLocation(`"`+"2006-01-02 15:04:05.000"+`"`, string(data), time.Local)
 	return
 }
 
-func (j JsonDate) EncodeValues(key string, val *url.Values) error {
-	val.Set(key, j.UTC().Format(time.DateOnly))
+func (j JsonTimeMilli) EncodeValues(key string, val *url.Values) error {
+	val.Set(key, j.Time.Format("2006-01-02 15:04:05.000"))
 	return nil
 }
