@@ -58,11 +58,14 @@ func (w *WorkerPool) Submit(ctx context.Context, fn func(ctx context.Context)) c
 }
 
 func (w *WorkerPool) fetchToken() bool {
-	old := w.idle
-	if old <= 0 {
+	if w.idle <= 0 {
 		return false
 	}
-	return atomic.CompareAndSwapInt32(&w.idle, old, old-1)
+	if atomic.AddInt32(&w.idle, -1) < 0 {
+		atomic.AddInt32(&w.idle, 1)
+		return false
+	}
+	return true
 }
 
 func (w *WorkerPool) freeToken() {
