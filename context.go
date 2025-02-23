@@ -2,7 +2,7 @@ package utils
 
 import "context"
 
-func contextFromChan[T any](ctx context.Context, channels ...chan T) (context.Context, context.CancelFunc) {
+func ContextFromChan[T any](ctx context.Context, channels ...chan T) (context.Context, context.CancelFunc) {
 	subCtx, subCancel := context.WithCancel(ctx)
 
 	for _, v := range channels {
