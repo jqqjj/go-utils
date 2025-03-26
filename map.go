@@ -29,6 +29,12 @@ func (m *Map[K, V]) Len() int {
 	return len(m.ent)
 }
 
+func (m *Map[K, V]) WithLock(fn func(m map[K]V)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	fn(m.ent)
+}
+
 func (m *Map[K, V]) Filter(fn func(K, V) bool) map[K]V {
 	m.mux.RLock()
 	defer m.mux.RUnlock()
