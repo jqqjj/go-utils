@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -45,13 +46,23 @@ func (j JsonDate) Value() (driver.Value, error) {
 func (j JsonDate) MarshalJSON() ([]byte, error) {
 	b := make([]byte, 0, len(time.DateOnly)+2)
 	b = append(b, '"')
-	b = j.AppendFormat(b, time.DateOnly)
+	b = j.Time.AppendFormat(b, time.DateOnly)
 	b = append(b, '"')
 	return b, nil
 }
 
 func (j *JsonDate) UnmarshalJSON(data []byte) (err error) {
-	j.Time, err = time.Parse(`"`+time.DateOnly+`"`, string(data))
+	j.Time = time.Time{}
+	str := string(data)
+	// 去掉外层引号
+	if len(str) >= 2 && str[0] == '"' && str[len(str)-1] == '"' {
+		str = str[1 : len(str)-1]
+	}
+	// 零值处理
+	if str == "null" || str == "" || strings.HasPrefix(str, "0000-00-00") {
+		return
+	}
+	j.Time, err = time.ParseInLocation(time.DateOnly, str, time.Local)
 	return
 }
 

@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -50,8 +51,17 @@ func (j JsonTimeRFC3339) MarshalJSON() ([]byte, error) {
 
 func (j *JsonTimeRFC3339) UnmarshalJSON(data []byte) (err error) {
 	var tmpTime time.Time
-	tmpTime, err = time.Parse(`"`+time.RFC3339+`"`, string(data))
-	*j = JsonTimeRFC3339(tmpTime.Local())
+	str := string(data)
+	// 去掉外层引号
+	if len(str) >= 2 && str[0] == '"' && str[len(str)-1] == '"' {
+		str = str[1 : len(str)-1]
+	}
+	// 零值处理
+	if str == "null" || str == "" || strings.HasPrefix(str, "0000-00-00") {
+		return
+	}
+	tmpTime, err = time.ParseInLocation(time.RFC3339, str, time.Local)
+	*j = JsonTimeRFC3339(tmpTime)
 	return
 }
 

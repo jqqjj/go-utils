@@ -1,6 +1,6 @@
 module github.com/jqqjj/go-utils
 
-go 1.18
+go 1.20
 
 require (
 	github.com/Eun/go-convert v1.2.12

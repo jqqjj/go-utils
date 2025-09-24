@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -60,16 +61,24 @@ func (j JsonNullTimeMilli) MarshalJSON() ([]byte, error) {
 func (j *JsonNullTimeMilli) UnmarshalJSON(data []byte) (err error) {
 	var s *string
 	if err = json.Unmarshal(data, &s); err != nil {
-		return err
+		return
 	}
 	if s == nil {
 		j.Valid = false
 		return
 	}
-	if j.Time, err = time.ParseInLocation("2006-01-02 15:04:05.000", *s, time.Local); err != nil {
-		return err
+	str := *s
+	// 去掉外层引号
+	if len(str) >= 2 && str[0] == '"' && str[len(str)-1] == '"' {
+		str = str[1 : len(str)-1]
 	}
-	j.Valid = true
+	// 零值处理
+	if str == "null" || str == "" || strings.HasPrefix(str, "0000-00-00") {
+		j.Valid = false
+		return
+	}
+	j.Time, err = time.ParseInLocation("2006-01-02 15:04:05.000", str, time.Local)
+	j.Valid = err == nil
 	return
 }
 
