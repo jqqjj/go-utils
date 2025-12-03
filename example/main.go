@@ -1,59 +1,21 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"github.com/jqqjj/go-utils"
-	"math/rand"
-	"sync"
-	"time"
+	"io"
+	"log"
+	"net/http"
 )
 
 func main() {
-	w := utils.NewWorkerPool(1)
-
-	var wg sync.WaitGroup
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	wg.Add(1000)
-	go func() {
-		for i := 0; i < 1000; i++ {
-			index := i
-			ch := w.Submit(ctx, func(ctx context.Context) {
-				time.Sleep(time.Second * 3)
-				fmt.Println(time.Now().Format("2006-01-02 15:04:05"), index)
-			})
-			go func() {
-				<-ch
-				wg.Done()
-			}()
-		}
-	}()
-
-	go func() {
-		subCtx, subCancel := context.WithTimeout(ctx, time.Second*130)
-		defer subCancel()
-
-		rd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	LOOP:
-		for {
-			n := rd.Intn(7)
-			w.SetWorkerNum(n)
-
-			select {
-			case <-subCtx.Done():
-				break LOOP
-			default:
-				time.Sleep(time.Second * 3)
-			}
-		}
-
-		fmt.Println("修改为1进程")
-		w.SetWorkerNum(1)
-	}()
-
-	wg.Wait()
-	fmt.Println("退出")
-	cancel()
+	ja3 := "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,35-13-65281-23-27-10-16-43-45-11-0-5-17613-65037-51-18-41,4588-29-23-24,0"
+	t, _ := utils.NewTransport(ja3, "")
+	c := http.Client{Transport: t}
+	r, _ := http.NewRequest("GET", "https://tls.browserleaks.com/json", nil)
+	resp, err := c.Do(r)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	data, err := io.ReadAll(resp.Body)
+	log.Fatalln(string(data))
 }
