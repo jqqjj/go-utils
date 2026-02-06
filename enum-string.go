@@ -23,6 +23,15 @@ func (m *EnumString[T]) Is(other EnumGetter[T]) bool {
 	return m.value == value && m.valid == valid
 }
 
+func (m *EnumString[T]) IsAny(others []EnumGetter[T]) bool {
+	for _, v := range others {
+		if m.Is(v) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *EnumString[T]) IsValid() bool {
 	return m.valid
 }
