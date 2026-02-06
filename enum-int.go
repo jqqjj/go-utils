@@ -3,38 +3,44 @@ package utils
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"strconv"
 	"sync"
-	"unsafe"
 )
 
-var enumInt sync.Map
+var enumIntRegistered sync.Map
+
+type EnumGetter[T comparable] interface {
+	GetValue() (bool, T)
+}
 
 type EnumInt[T ~int] struct {
 	valid bool
-	value int
+	value T
 }
 
-func (e *EnumInt[T]) GetValue() int {
-	return e.value
+func (e EnumInt[T]) GetValue() (bool, T) {
+	return e.valid, e.value
 }
 
-func (e *EnumInt[T]) Is(a EnumInt[T]) bool {
-	return e.valid == a.valid && e.value == a.value
+func (m *EnumInt[T]) Is(other EnumGetter[T]) bool {
+	valid, value := other.GetValue()
+	return m.value == value && m.valid == valid
 }
 
-func (e *EnumInt[T]) IsEmpty() bool {
-	return !e.valid
+func (m *EnumInt[T]) IsValid() bool {
+	return m.valid
+}
+
+func (m *EnumInt[T]) RawValue() int {
+	return int(m.value)
 }
 
 func (e EnumInt[T]) MarshalJSON() ([]byte, error) {
 	if e.valid {
 		return json.Marshal(e.value)
-	} else {
-		return json.Marshal(nil)
 	}
+	return json.Marshal(nil)
 }
 
 func (e *EnumInt[T]) UnmarshalJSON(data []byte) error {
@@ -44,24 +50,23 @@ func (e *EnumInt[T]) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
 	}
+	if tmp == nil {
+		return nil
+	}
 
-	if tmp != nil {
-		var t EnumInt[T]
-		if val, ok := enumInt.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
-			for _, v := range val.([]int) {
-				if *tmp == v {
-					e.valid = true
-					e.value = *tmp
-					break
-				}
-			}
+	val := T(*tmp)
+	if b, ok := enumIntRegistered.Load(reflect.TypeOf(val)); ok {
+		builder := b.(*IntBuilder[T])
+		if m, ok := builder.members[val]; ok {
+			*e = m
+			return nil
 		}
 	}
 
 	return nil
 }
 
-func (e *EnumInt[T]) Scan(value interface{}) error {
+func (e *EnumInt[T]) Scan(value any) error {
 	e.valid = false
 
 	var tmp *int
@@ -88,16 +93,16 @@ func (e *EnumInt[T]) Scan(value interface{}) error {
 		}
 	}
 
-	if tmp != nil {
-		var t EnumInt[T]
-		if val, ok := enumInt.Load(reflect.ValueOf(&t).Type().Elem().String()); ok {
-			for _, v := range val.([]int) {
-				if *tmp == v {
-					e.valid = true
-					e.value = *tmp
-					break
-				}
-			}
+	if tmp == nil {
+		return nil
+	}
+
+	val := T(*tmp)
+	if b, ok := enumIntRegistered.Load(reflect.TypeOf(val)); ok {
+		builder := b.(*IntBuilder[T])
+		if m, ok := builder.members[val]; ok {
+			*e = m
+			return nil
 		}
 	}
 
@@ -111,46 +116,35 @@ func (e EnumInt[T]) Value() (driver.Value, error) {
 	return int64(e.value), nil
 }
 
-func EnumIntParse[T any](value int) (T, error) {
-	var target T
-	var actual EnumInt[int]
-
-	tTarget := reflect.ValueOf(&target)
-	tActual := reflect.ValueOf(&actual)
-	//判断内存布局是否一致
-	if tActual.Type().Elem().Kind() != tTarget.Type().Elem().Kind() ||
-		tActual.Type().Elem().Size() != tTarget.Type().Elem().Size() ||
-		tActual.Type().Elem().NumField() != tTarget.Type().Elem().NumField() {
-		return target, fmt.Errorf("type mismatch")
-	}
-
-	k := tTarget.Type().Elem().String()
-	if val, ok := enumInt.LoadOrStore(k, []int{}); ok {
-		for _, v := range val.([]int) {
-			if value == v {
-				actual.valid = true
-				actual.value = value
-				target = *(*T)(unsafe.Pointer(&actual))
-				break
-			}
-		}
-	}
-	return target, nil
+type IntBuilder[T ~int] struct {
+	members map[T]EnumInt[T]
 }
 
-func EnumIntParseBytes[T any](value []byte) (T, error) {
-	var target T
-	var tmp *int
-	if err := json.Unmarshal(value, &tmp); err != nil {
-		return target, err
-	}
-	return EnumIntParse[T](*tmp)
+func (b *IntBuilder[T]) Add(val T) EnumInt[T] {
+	m := EnumInt[T]{value: val, valid: true}
+	b.members[val] = m
+	return m
 }
 
-func NewEnumInt[T ~int](value int) EnumInt[T] {
-	var tmp EnumInt[T]
-	k := reflect.ValueOf(&tmp).Type().Elem().String()
-	val, _ := enumInt.LoadOrStore(k, []int{})
-	enumInt.Store(k, append(val.([]int), value))
-	return EnumInt[T]{valid: true, value: value}
+func (b *IntBuilder[T]) Parse(val int) EnumInt[T] {
+	if m, ok := b.members[T(val)]; ok {
+		return m
+	}
+	return EnumInt[T]{}
+}
+
+func (b *IntBuilder[T]) Members() (members []EnumInt[T]) {
+	for _, v := range b.members {
+		members = append(members, v)
+	}
+	return
+}
+
+func NewIntEnum[T ~int]() *IntBuilder[T] {
+	b := &IntBuilder[T]{
+		members: make(map[T]EnumInt[T]),
+	}
+	var typ T
+	enumIntRegistered.Store(reflect.TypeOf(typ), b)
+	return b
 }
