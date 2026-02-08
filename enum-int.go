@@ -10,8 +10,15 @@ import (
 
 var enumIntRegistered sync.Map
 
-type EnumGetter[T comparable] interface {
-	GetValue() (bool, T)
+type Enum[T comparable] interface {
+	RawValue() (value T)
+	GetValue() (value T, valid bool)
+	SetValue(value T) bool
+	Set(Enum[T]) bool
+	CheckValue(value T) bool
+	IsValid() bool
+	Is(other Enum[T]) bool
+	IsAny(others ...Enum[T]) bool
 }
 
 type EnumInt[T ~int] struct {
@@ -19,30 +26,49 @@ type EnumInt[T ~int] struct {
 	value T
 }
 
-func (e EnumInt[T]) GetValue() (bool, T) {
-	return e.valid, e.value
+func (m EnumInt[T]) RawValue() (value T) {
+	return m.value
 }
-
-func (m *EnumInt[T]) Is(other EnumGetter[T]) bool {
-	valid, value := other.GetValue()
-	return m.value == value && m.valid == valid
+func (m EnumInt[T]) GetValue() (value T, valid bool) {
+	return m.value, m.valid
 }
-
-func (m *EnumInt[T]) IsAny(others []EnumGetter[T]) bool {
+func (m *EnumInt[T]) SetValue(value T) bool {
+	if m.CheckValue(value) {
+		m.valid, m.value = true, value
+	}
+	return m.valid
+}
+func (m *EnumInt[T]) Set(v Enum[T]) bool {
+	value, _ := v.GetValue()
+	return m.SetValue(value)
+}
+func (m EnumInt[T]) CheckValue(val T) bool {
+	if b, ok := enumIntRegistered.Load(reflect.TypeOf(val)); ok {
+		for _, v := range b.(*IntBuilder[T]).Members() {
+			if rawValue, valid := v.GetValue(); rawValue == val {
+				return valid
+			}
+		}
+	}
+	return false
+}
+func (m EnumInt[T]) IsValid() bool {
+	return m.valid
+}
+func (e EnumInt[T]) Is(other Enum[T]) bool {
+	if other == nil {
+		return false
+	}
+	value, valid := other.GetValue()
+	return e.valid == valid && e.value == value
+}
+func (m *EnumInt[T]) IsAny(others ...Enum[T]) bool {
 	for _, v := range others {
 		if m.Is(v) {
 			return true
 		}
 	}
 	return false
-}
-
-func (m *EnumInt[T]) IsValid() bool {
-	return m.valid
-}
-
-func (m *EnumInt[T]) RawValue() int {
-	return int(m.value)
 }
 
 func (e EnumInt[T]) MarshalJSON() ([]byte, error) {
@@ -59,19 +85,10 @@ func (e *EnumInt[T]) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
 	}
-	if tmp == nil {
-		return nil
-	}
 
-	val := T(*tmp)
-	if b, ok := enumIntRegistered.Load(reflect.TypeOf(val)); ok {
-		builder := b.(*IntBuilder[T])
-		if m, ok := builder.members[val]; ok {
-			*e = m
-			return nil
-		}
+	if tmp != nil {
+		e.SetValue(T(*tmp))
 	}
-
 	return nil
 }
 
@@ -102,19 +119,9 @@ func (e *EnumInt[T]) Scan(value any) error {
 		}
 	}
 
-	if tmp == nil {
-		return nil
+	if tmp != nil {
+		e.SetValue(T(*tmp))
 	}
-
-	val := T(*tmp)
-	if b, ok := enumIntRegistered.Load(reflect.TypeOf(val)); ok {
-		builder := b.(*IntBuilder[T])
-		if m, ok := builder.members[val]; ok {
-			*e = m
-			return nil
-		}
-	}
-
 	return nil
 }
 
@@ -126,23 +133,23 @@ func (e EnumInt[T]) Value() (driver.Value, error) {
 }
 
 type IntBuilder[T ~int] struct {
-	members map[T]EnumInt[T]
+	members map[T]Enum[T]
 }
 
-func (b *IntBuilder[T]) Add(val T) EnumInt[T] {
-	m := EnumInt[T]{value: val, valid: true}
-	b.members[val] = m
-	return m
+func (b *IntBuilder[T]) Add(val T) *EnumInt[T] {
+	b.members[val] = &EnumInt[T]{value: val, valid: true}
+	return &EnumInt[T]{value: val, valid: true}
 }
 
-func (b *IntBuilder[T]) Parse(val int) EnumInt[T] {
+func (b *IntBuilder[T]) Parse(val int) Enum[T] {
+	var t EnumInt[T]
 	if m, ok := b.members[T(val)]; ok {
 		return m
 	}
-	return EnumInt[T]{}
+	return &t
 }
 
-func (b *IntBuilder[T]) Members() (members []EnumInt[T]) {
+func (b *IntBuilder[T]) Members() (members []Enum[T]) {
 	for _, v := range b.members {
 		members = append(members, v)
 	}
@@ -151,7 +158,7 @@ func (b *IntBuilder[T]) Members() (members []EnumInt[T]) {
 
 func NewIntEnum[T ~int]() *IntBuilder[T] {
 	b := &IntBuilder[T]{
-		members: make(map[T]EnumInt[T]),
+		members: make(map[T]Enum[T]),
 	}
 	var typ T
 	enumIntRegistered.Store(reflect.TypeOf(typ), b)

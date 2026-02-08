@@ -14,30 +14,49 @@ type EnumString[T ~string] struct {
 	value T
 }
 
-func (e EnumString[T]) GetValue() (bool, T) {
-	return e.valid, e.value
+func (m EnumString[T]) RawValue() (value T) {
+	return m.value
 }
-
-func (m *EnumString[T]) Is(other EnumGetter[T]) bool {
-	valid, value := other.GetValue()
-	return m.value == value && m.valid == valid
+func (m EnumString[T]) GetValue() (value T, valid bool) {
+	return m.value, m.valid
 }
-
-func (m *EnumString[T]) IsAny(others []EnumGetter[T]) bool {
+func (m *EnumString[T]) SetValue(value T) bool {
+	if m.CheckValue(value) {
+		m.valid, m.value = true, value
+	}
+	return m.valid
+}
+func (m *EnumString[T]) Set(v Enum[T]) bool {
+	value, _ := v.GetValue()
+	return m.SetValue(value)
+}
+func (m EnumString[T]) CheckValue(val T) bool {
+	if b, ok := enumStringRegistered.Load(reflect.TypeOf(val)); ok {
+		for _, v := range b.(*StringBuilder[T]).Members() {
+			if rawValue, valid := v.GetValue(); rawValue == val {
+				return valid
+			}
+		}
+	}
+	return false
+}
+func (m EnumString[T]) IsValid() bool {
+	return m.valid
+}
+func (e EnumString[T]) Is(other Enum[T]) bool {
+	if other == nil {
+		return false
+	}
+	value, valid := other.GetValue()
+	return e.valid == valid && e.value == value
+}
+func (m *EnumString[T]) IsAny(others ...Enum[T]) bool {
 	for _, v := range others {
 		if m.Is(v) {
 			return true
 		}
 	}
 	return false
-}
-
-func (m *EnumString[T]) IsValid() bool {
-	return m.valid
-}
-
-func (m *EnumString[T]) RawValue() string {
-	return string(m.value)
 }
 
 func (e EnumString[T]) MarshalJSON() ([]byte, error) {
@@ -54,19 +73,10 @@ func (e *EnumString[T]) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
 	}
-	if tmp == nil {
-		return nil
-	}
 
-	val := T(*tmp)
-	if b, ok := enumStringRegistered.Load(reflect.TypeOf(val)); ok {
-		builder := b.(*StringBuilder[T])
-		if m, ok := builder.members[val]; ok {
-			*e = m
-			return nil
-		}
+	if tmp != nil {
+		e.SetValue(T(*tmp))
 	}
-
 	return nil
 }
 
@@ -83,19 +93,9 @@ func (e *EnumString[T]) Scan(value any) error {
 		tmp = &local
 	}
 
-	if tmp == nil {
-		return nil
+	if tmp != nil {
+		e.SetValue(T(*tmp))
 	}
-
-	val := T(*tmp)
-	if b, ok := enumStringRegistered.Load(reflect.TypeOf(val)); ok {
-		builder := b.(*StringBuilder[T])
-		if m, ok := builder.members[val]; ok {
-			*e = m
-			return nil
-		}
-	}
-
 	return nil
 }
 
@@ -107,23 +107,23 @@ func (e EnumString[T]) Value() (driver.Value, error) {
 }
 
 type StringBuilder[T ~string] struct {
-	members map[T]EnumString[T]
+	members map[T]Enum[T]
 }
 
-func (b *StringBuilder[T]) Add(val T) EnumString[T] {
-	m := EnumString[T]{value: val, valid: true}
-	b.members[val] = m
-	return m
+func (b *StringBuilder[T]) Add(val T) *EnumString[T] {
+	b.members[val] = &EnumString[T]{value: val, valid: true}
+	return &EnumString[T]{value: val, valid: true}
 }
 
-func (b *StringBuilder[T]) Parse(val string) EnumString[T] {
+func (b *StringBuilder[T]) Parse(val string) Enum[T] {
+	var t EnumString[T]
 	if m, ok := b.members[T(val)]; ok {
 		return m
 	}
-	return EnumString[T]{}
+	return &t
 }
 
-func (b *StringBuilder[T]) Members() (members []EnumString[T]) {
+func (b *StringBuilder[T]) Members() (members []Enum[T]) {
 	for _, v := range b.members {
 		members = append(members, v)
 	}
@@ -132,7 +132,7 @@ func (b *StringBuilder[T]) Members() (members []EnumString[T]) {
 
 func NewStringEnum[T ~string]() *StringBuilder[T] {
 	b := &StringBuilder[T]{
-		members: make(map[T]EnumString[T]),
+		members: make(map[T]Enum[T]),
 	}
 	var typ T
 	enumStringRegistered.Store(reflect.TypeOf(typ), b)
