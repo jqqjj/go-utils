@@ -62,7 +62,7 @@ func (e EnumInt[T]) Is(other Enum[T]) bool {
 	value, valid := other.GetValue()
 	return e.valid == valid && e.value == value
 }
-func (m *EnumInt[T]) IsAny(others ...Enum[T]) bool {
+func (m EnumInt[T]) IsAny(others ...Enum[T]) bool {
 	for _, v := range others {
 		if m.Is(v) {
 			return true
