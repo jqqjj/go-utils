@@ -3,9 +3,11 @@ package utils
 import (
 	"database/sql/driver"
 	"fmt"
+	"reflect"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"reflect"
+	"gorm.io/gorm/schema"
 )
 
 type IRepositoryModel interface {
@@ -454,6 +456,18 @@ func (r Repository[ModelType, PrimaryType]) CountByConditions(conditions map[str
 
 func (r Repository[ModelType, PrimaryType]) DBConn() *gorm.DB {
 	return r.db
+}
+
+func (r Repository[ModelType, PrimaryType]) TableName() string {
+	var v ModelType
+	if i, ok := any(v).(schema.Tabler); ok {
+		return i.TableName()
+	}
+	t := reflect.TypeOf(v)
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return schema.NamingStrategy{}.TableName(t.Name())
 }
 
 func (r Repository[ModelType, PrimaryType]) buildWhereCondition(builder *gorm.DB, k string, v any) *gorm.DB {
