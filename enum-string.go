@@ -19,12 +19,16 @@ func (e EnumString[T]) IsSet() bool {
 	return e.set
 }
 
-func (e EnumString[T]) String() (string, bool) {
+func (e EnumString[T]) GetValue() (string, bool) {
 	return e.v, e.set
 }
 
+func (e EnumString[T]) String() string {
+	return e.v
+}
+
 func (e EnumString[T]) MarshalJSON() ([]byte, error) {
-	v, ok := e.String()
+	v, ok := e.GetValue()
 	if !ok {
 		return []byte("null"), nil
 	}

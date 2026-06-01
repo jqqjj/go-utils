@@ -20,12 +20,16 @@ func (e EnumInt[T]) IsSet() bool {
 	return e.set
 }
 
-func (e EnumInt[T]) Int() (int, bool) {
+func (e EnumInt[T]) GetValue() (int, bool) {
 	return e.v, e.set
 }
 
+func (e EnumInt[T]) Int() int {
+	return e.v
+}
+
 func (e EnumInt[T]) MarshalJSON() ([]byte, error) {
-	v, ok := e.Int()
+	v, ok := e.GetValue()
 	if !ok {
 		return []byte("null"), nil
 	}
