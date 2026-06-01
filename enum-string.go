@@ -3,138 +3,166 @@ package utils
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"sync"
 )
 
-var enumStringRegistered sync.Map
+var registryString sync.Map // map[reflect.Type]any
 
-type EnumString[T ~string] struct {
-	valid bool
-	value T
+type EnumString[T any] struct {
+	v   string
+	set bool
 }
 
-func (m EnumString[T]) RawValue() (value T) {
-	return m.value
+func (e EnumString[T]) IsSet() bool {
+	return e.set
 }
-func (m EnumString[T]) GetValue() (value T, valid bool) {
-	return m.value, m.valid
-}
-func (m *EnumString[T]) SetValue(value T) bool {
-	if m.CheckValue(value) {
-		m.valid, m.value = true, value
-	}
-	return m.valid
-}
-func (m *EnumString[T]) Set(v Enum[T]) bool {
-	value, _ := v.GetValue()
-	return m.SetValue(value)
-}
-func (m EnumString[T]) CheckValue(val T) bool {
-	if b, ok := enumStringRegistered.Load(reflect.TypeOf(val)); ok {
-		for _, v := range b.(*StringBuilder[T]).Members() {
-			if rawValue, valid := v.GetValue(); rawValue == val {
-				return valid
-			}
-		}
-	}
-	return false
-}
-func (m EnumString[T]) IsValid() bool {
-	return m.valid
-}
-func (e EnumString[T]) Is(other Enum[T]) bool {
-	if other == nil {
-		return false
-	}
-	value, valid := other.GetValue()
-	return e.valid == valid && e.value == value
-}
-func (m EnumString[T]) IsAny(others ...Enum[T]) bool {
-	for _, v := range others {
-		if m.Is(v) {
-			return true
-		}
-	}
-	return false
+
+func (e EnumString[T]) String() (string, bool) {
+	return e.v, e.set
 }
 
 func (e EnumString[T]) MarshalJSON() ([]byte, error) {
-	if e.valid {
-		return json.Marshal(e.value)
+	v, ok := e.String()
+	if !ok {
+		return []byte("null"), nil
 	}
-	return json.Marshal(nil)
+
+	return json.Marshal(v)
 }
 
 func (e *EnumString[T]) UnmarshalJSON(data []byte) error {
-	e.valid = false
+	if string(data) == "null" {
+		*e = EnumString[T]{}
+		return nil
+	}
 
-	var tmp *string
-	if err := json.Unmarshal(data, &tmp); err != nil {
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
 
-	if tmp != nil {
-		e.SetValue(T(*tmp))
+	typ, ok := EnumStringTypeGet[T]()
+	if !ok {
+		return fmt.Errorf("enum type not registered")
 	}
+
+	parsed, err := typ.Parse(v)
+	if err != nil {
+		return err
+	}
+
+	*e = parsed
 	return nil
 }
 
 func (e *EnumString[T]) Scan(value any) error {
-	e.valid = false
+	if value == nil {
+		*e = EnumString[T]{}
+		return nil
+	}
 
-	var tmp *string
-	switch value.(type) {
+	var v string
+	switch value := value.(type) {
 	case string:
-		local := value.(string)
-		tmp = &local
-	case []uint8:
-		local := string(value.([]byte))
-		tmp = &local
+		v = value
+	case []byte:
+		v = string(value)
+	default:
+		return fmt.Errorf("unsupported enum string scan type: %T", value)
 	}
 
-	if tmp != nil {
-		e.SetValue(T(*tmp))
+	typ, ok := EnumStringTypeGet[T]()
+	if !ok {
+		return fmt.Errorf("enum type not registered")
 	}
+
+	parsed, err := typ.Parse(v)
+	if err != nil {
+		return err
+	}
+
+	*e = parsed
 	return nil
 }
 
 func (e EnumString[T]) Value() (driver.Value, error) {
-	if !e.valid {
+	if !e.set {
 		return nil, nil
 	}
-	return string(e.value), nil
+
+	return e.v, nil
 }
 
-type StringBuilder[T ~string] struct {
-	members map[T]Enum[T]
+type EnumStringType[T any] struct {
+	mu     sync.RWMutex
+	values map[string]struct{}
 }
 
-func (b *StringBuilder[T]) Add(val T) *EnumString[T] {
-	b.members[val] = &EnumString[T]{value: val, valid: true}
-	return &EnumString[T]{value: val, valid: true}
-}
-
-func (b *StringBuilder[T]) Parse(val string) Enum[T] {
-	var t EnumString[T]
-	if m, ok := b.members[T(val)]; ok {
-		return m
+func NewEnumStringType[T any]() *EnumStringType[T] {
+	t := &EnumStringType[T]{
+		values: make(map[string]struct{}),
 	}
-	return &t
+
+	key := reflect.TypeOf((*T)(nil)).Elem()
+	if _, loaded := registryString.LoadOrStore(key, t); loaded {
+		panic(fmt.Sprintf("enum type already registered: %v", key))
+	}
+
+	return t
 }
 
-func (b *StringBuilder[T]) Members() (members []Enum[T]) {
-	for _, v := range b.members {
-		members = append(members, v)
+func EnumStringTypeGet[T any]() (*EnumStringType[T], bool) {
+	v, ok := registryString.Load(reflect.TypeOf((*T)(nil)).Elem())
+	if !ok {
+		return nil, false
 	}
-	return
+
+	t, ok := v.(*EnumStringType[T])
+	return t, ok
 }
 
-func NewStringEnum[T ~string]() *StringBuilder[T] {
-	b := &StringBuilder[T]{
-		members: make(map[T]Enum[T]),
+func (t *EnumStringType[T]) Add(v string) EnumString[T] {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if _, ok := t.values[v]; ok {
+		panic(fmt.Sprintf("enum value duplicated: %q", v))
 	}
-	var typ T
-	enumStringRegistered.Store(reflect.TypeOf(typ), b)
-	return b
+
+	t.values[v] = struct{}{}
+
+	return EnumString[T]{
+		v:   v,
+		set: true,
+	}
+}
+
+func (t *EnumStringType[T]) Parse(v string) (EnumString[T], error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if _, ok := t.values[v]; !ok {
+		return EnumString[T]{}, fmt.Errorf("invalid enum value: %q", v)
+	}
+
+	return EnumString[T]{
+		v:   v,
+		set: true,
+	}, nil
+}
+
+func (t *EnumStringType[T]) IsAny(v EnumString[T], values ...EnumString[T]) bool {
+	if !v.set {
+		return false
+	}
+
+	for _, value := range values {
+		if value.set && value.v == v.v {
+			return true
+		}
+	}
+
+	return false
 }

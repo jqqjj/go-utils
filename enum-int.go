@@ -3,164 +3,216 @@ package utils
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 	"sync"
 )
 
-var enumIntRegistered sync.Map
+var registryInt sync.Map // map[reflect.EnumIntType]any
 
-type Enum[T comparable] interface {
-	RawValue() (value T)
-	GetValue() (value T, valid bool)
-	SetValue(value T) bool
-	Set(Enum[T]) bool
-	CheckValue(value T) bool
-	IsValid() bool
-	Is(other Enum[T]) bool
-	IsAny(others ...Enum[T]) bool
+type EnumInt[T any] struct {
+	v   int
+	set bool
 }
 
-type EnumInt[T ~int] struct {
-	valid bool
-	value T
+func (e EnumInt[T]) IsSet() bool {
+	return e.set
 }
 
-func (m EnumInt[T]) RawValue() (value T) {
-	return m.value
-}
-func (m EnumInt[T]) GetValue() (value T, valid bool) {
-	return m.value, m.valid
-}
-func (m *EnumInt[T]) SetValue(value T) bool {
-	if m.CheckValue(value) {
-		m.valid, m.value = true, value
-	}
-	return m.valid
-}
-func (m *EnumInt[T]) Set(v Enum[T]) bool {
-	value, _ := v.GetValue()
-	return m.SetValue(value)
-}
-func (m EnumInt[T]) CheckValue(val T) bool {
-	if b, ok := enumIntRegistered.Load(reflect.TypeOf(val)); ok {
-		for _, v := range b.(*IntBuilder[T]).Members() {
-			if rawValue, valid := v.GetValue(); rawValue == val {
-				return valid
-			}
-		}
-	}
-	return false
-}
-func (m EnumInt[T]) IsValid() bool {
-	return m.valid
-}
-func (e EnumInt[T]) Is(other Enum[T]) bool {
-	if other == nil {
-		return false
-	}
-	value, valid := other.GetValue()
-	return e.valid == valid && e.value == value
-}
-func (m EnumInt[T]) IsAny(others ...Enum[T]) bool {
-	for _, v := range others {
-		if m.Is(v) {
-			return true
-		}
-	}
-	return false
+func (e EnumInt[T]) Int() (int, bool) {
+	return e.v, e.set
 }
 
 func (e EnumInt[T]) MarshalJSON() ([]byte, error) {
-	if e.valid {
-		return json.Marshal(e.value)
+	v, ok := e.Int()
+	if !ok {
+		return []byte("null"), nil
 	}
-	return json.Marshal(nil)
+
+	return []byte(strconv.Itoa(v)), nil
 }
 
 func (e *EnumInt[T]) UnmarshalJSON(data []byte) error {
-	e.valid = false
+	if string(data) == "null" {
+		*e = EnumInt[T]{}
+		return nil
+	}
 
-	var tmp *int
-	if err := json.Unmarshal(data, &tmp); err != nil {
+	var v int
+	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
 
-	if tmp != nil {
-		e.SetValue(T(*tmp))
+	typ, ok := EnumIntTypeGet[T]()
+	if !ok {
+		return fmt.Errorf("enum type not registered")
 	}
+
+	parsed, err := typ.Parse(v)
+	if err != nil {
+		return err
+	}
+
+	*e = parsed
 	return nil
 }
 
 func (e *EnumInt[T]) Scan(value any) error {
-	e.valid = false
+	if value == nil {
+		*e = EnumInt[T]{}
+		return nil
+	}
 
-	var tmp *int
-	switch value.(type) {
-	case int64:
-		local := int(value.(int64))
-		tmp = &local
-	case int32:
-		local := int(value.(int32))
-		tmp = &local
+	var v int
+	switch value := value.(type) {
 	case int:
-		local := value.(int)
-		tmp = &local
+		v = value
+	case int8:
+		v = int(value)
+	case int16:
+		v = int(value)
+	case int32:
+		v = int(value)
+	case int64:
+		if !int64FitsInt(value) {
+			return fmt.Errorf("enum int scan value overflows int: %d", value)
+		}
+		v = int(value)
+	case uint:
+		if !uint64FitsInt(uint64(value)) {
+			return fmt.Errorf("enum int scan value overflows int: %d", value)
+		}
+		v = int(value)
 	case uint8:
-		local := int(value.(uint8))
-		tmp = &local
-	case []uint8:
-		if i, err := strconv.Atoi(string(value.([]uint8))); err == nil {
-			tmp = &i
+		v = int(value)
+	case uint16:
+		v = int(value)
+	case uint32:
+		if !uint64FitsInt(uint64(value)) {
+			return fmt.Errorf("enum int scan value overflows int: %d", value)
 		}
+		v = int(value)
+	case uint64:
+		if !uint64FitsInt(value) {
+			return fmt.Errorf("enum int scan value overflows int: %d", value)
+		}
+		v = int(value)
+	case []byte:
+		parsed, err := strconv.Atoi(string(value))
+		if err != nil {
+			return err
+		}
+		v = parsed
 	case string:
-		if i, err := strconv.Atoi(value.(string)); err == nil {
-			tmp = &i
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return err
 		}
+		v = parsed
+	default:
+		return fmt.Errorf("unsupported enum int scan type: %T", value)
 	}
 
-	if tmp != nil {
-		e.SetValue(T(*tmp))
+	typ, ok := EnumIntTypeGet[T]()
+	if !ok {
+		return fmt.Errorf("enum type not registered")
 	}
+
+	parsed, err := typ.Parse(v)
+	if err != nil {
+		return err
+	}
+
+	*e = parsed
 	return nil
 }
 
+func int64FitsInt(v int64) bool {
+	maxInt := int64(^uint(0) >> 1)
+	minInt := -maxInt - 1
+	return v >= minInt && v <= maxInt
+}
+
+func uint64FitsInt(v uint64) bool {
+	maxInt := uint64(^uint(0) >> 1)
+	return v <= maxInt
+}
+
 func (e EnumInt[T]) Value() (driver.Value, error) {
-	if !e.valid {
+	if !e.set {
 		return nil, nil
 	}
-	return int64(e.value), nil
+
+	return int64(e.v), nil
 }
 
-type IntBuilder[T ~int] struct {
-	members map[T]Enum[T]
+type EnumIntType[T any] struct {
+	mu     sync.RWMutex
+	values map[int]struct{}
 }
 
-func (b *IntBuilder[T]) Add(val T) *EnumInt[T] {
-	b.members[val] = &EnumInt[T]{value: val, valid: true}
-	return &EnumInt[T]{value: val, valid: true}
-}
+func NewEnumIntType[T any]() *EnumIntType[T] {
+	t := &EnumIntType[T]{values: make(map[int]struct{})}
 
-func (b *IntBuilder[T]) Parse(val int) Enum[T] {
-	var t EnumInt[T]
-	if m, ok := b.members[T(val)]; ok {
-		return m
+	key := reflect.TypeOf((*T)(nil)).Elem()
+	if _, loaded := registryInt.LoadOrStore(key, t); loaded {
+		panic(fmt.Sprintf("enum type already registered: %v", key))
 	}
-	return &t
+
+	return t
 }
 
-func (b *IntBuilder[T]) Members() (members []Enum[T]) {
-	for _, v := range b.members {
-		members = append(members, v)
+func EnumIntTypeGet[T any]() (*EnumIntType[T], bool) {
+	v, ok := registryInt.Load(reflect.TypeOf((*T)(nil)).Elem())
+	if !ok {
+		return nil, false
 	}
-	return
+
+	t, ok := v.(*EnumIntType[T])
+	return t, ok
 }
 
-func NewIntEnum[T ~int]() *IntBuilder[T] {
-	b := &IntBuilder[T]{
-		members: make(map[T]Enum[T]),
+func (t *EnumIntType[T]) Add(v int) EnumInt[T] {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if _, ok := t.values[v]; ok {
+		panic(fmt.Sprintf("enum value duplicated: %d", v))
 	}
-	var typ T
-	enumIntRegistered.Store(reflect.TypeOf(typ), b)
-	return b
+
+	t.values[v] = struct{}{}
+
+	return EnumInt[T]{
+		v:   v,
+		set: true,
+	}
+}
+
+func (t *EnumIntType[T]) Parse(v int) (EnumInt[T], error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if _, ok := t.values[v]; !ok {
+		return EnumInt[T]{}, fmt.Errorf("invalid enum value: %d", v)
+	}
+
+	return EnumInt[T]{
+		v:   v,
+		set: true,
+	}, nil
+}
+
+func (t *EnumIntType[T]) IsAny(v EnumInt[T], values ...EnumInt[T]) bool {
+	if !v.set {
+		return false
+	}
+
+	for _, value := range values {
+		if value.set && value.v == v.v {
+			return true
+		}
+	}
+
+	return false
 }
