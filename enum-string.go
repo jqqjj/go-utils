@@ -100,8 +100,9 @@ func (e EnumString[T]) Value() (driver.Value, error) {
 }
 
 type EnumStringType[T any] struct {
-	mu     sync.RWMutex
-	values map[string]struct{}
+	mu      sync.RWMutex
+	values  map[string]struct{}
+	members []EnumString[T]
 }
 
 func NewEnumStringType[T any]() *EnumStringType[T] {
@@ -137,10 +138,13 @@ func (t *EnumStringType[T]) Add(v string) EnumString[T] {
 
 	t.values[v] = struct{}{}
 
-	return EnumString[T]{
+	e := EnumString[T]{
 		v:   v,
 		set: true,
 	}
+	t.members = append(t.members, e)
+
+	return e
 }
 
 func (t *EnumStringType[T]) Parse(v string) (EnumString[T], error) {
@@ -155,6 +159,16 @@ func (t *EnumStringType[T]) Parse(v string) (EnumString[T], error) {
 		v:   v,
 		set: true,
 	}, nil
+}
+
+func (t *EnumStringType[T]) Members() []EnumString[T] {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	members := make([]EnumString[T], len(t.members))
+	copy(members, t.members)
+
+	return members
 }
 
 func (t *EnumStringType[T]) IsAny(v EnumString[T], values ...EnumString[T]) bool {
