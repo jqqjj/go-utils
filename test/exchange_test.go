@@ -11,8 +11,9 @@ type attachmentType string
 type AttachmentType = utils.EnumString[attachmentType]
 
 var (
-	AttachmentTypePhoto = utils.NewEnumString[attachmentType]("1")
-	AttachmentTypeVideo = utils.NewEnumString[attachmentType]("2")
+	attachmentTypes     = utils.NewEnumStringType[attachmentType]()
+	AttachmentTypePhoto = attachmentTypes.Add("1")
+	AttachmentTypeVideo = attachmentTypes.Add("2")
 )
 
 func TestPubSub(t *testing.T) {
@@ -23,8 +24,8 @@ func TestPubSub(t *testing.T) {
 	defer cancelPhoto()
 	defer cancelVideo()
 
-	photo := make(chan []byte)
-	video := make(chan []byte)
+	photo := make(chan utils.PubSubChan[AttachmentType, []byte], 10)
+	video := make(chan utils.PubSubChan[AttachmentType, []byte], 10)
 
 	e.Publish(AttachmentTypePhoto, []byte("photo"))
 	e.Publish(AttachmentTypeVideo, []byte("video"))
@@ -41,7 +42,7 @@ func TestPubSub(t *testing.T) {
 
 	select {
 	case v := <-video:
-		if string(v) != "1" {
+		if string(v.Data) != "1" {
 			t.Error("0")
 			return
 		}

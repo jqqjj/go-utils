@@ -30,7 +30,7 @@ func (w *WorkerPool) Submit(ctx context.Context, fn func(ctx context.Context)) c
 		subCtx, cancelFn := context.WithCancel(ctx)
 		defer cancelFn()
 
-		chSub := make(chan any)
+		chSub := make(chan PubSubChan[string, any])
 		w.pubSub.Subscribe(subCtx, "idle", chSub)
 
 		for {
@@ -58,14 +58,15 @@ func (w *WorkerPool) Submit(ctx context.Context, fn func(ctx context.Context)) c
 }
 
 func (w *WorkerPool) fetchToken() bool {
-	if w.idle <= 0 {
-		return false
+	for {
+		idle := atomic.LoadInt32(&w.idle)
+		if idle <= 0 {
+			return false
+		}
+		if atomic.CompareAndSwapInt32(&w.idle, idle, idle-1) {
+			return true
+		}
 	}
-	if atomic.AddInt32(&w.idle, -1) < 0 {
-		atomic.AddInt32(&w.idle, 1)
-		return false
-	}
-	return true
 }
 
 func (w *WorkerPool) freeToken() {

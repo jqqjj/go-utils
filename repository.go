@@ -266,7 +266,8 @@ func (r Repository[ModelType, PrimaryType]) GetLastByField(field string, value a
 		m   ModelType
 	)
 	builder := r.buildPreloads(r.db, preloads...)
-	if err = builder.Where(r.buildWhereCondition(builder, field, value)).Last(&m).Error; err != nil {
+	builder = r.buildWhereCondition(builder, field, value)
+	if err = builder.Last(&m).Error; err != nil {
 		return nil, err
 	}
 	return &m, nil
@@ -355,7 +356,8 @@ func (r Repository[ModelType, PrimaryType]) GetByField(field string, value any, 
 		m   ModelType
 	)
 	builder := r.buildPreloads(r.db, preloads...)
-	if err = builder.Where(r.buildWhereCondition(builder, field, value)).Take(&m).Error; err != nil {
+	builder = r.buildWhereCondition(builder, field, value)
+	if err = builder.Take(&m).Error; err != nil {
 		return nil, err
 	}
 	return &m, nil
@@ -399,7 +401,8 @@ func (r Repository[ModelType, PrimaryType]) GetAllByFieldOrderByLimitOffset(fiel
 	)
 	builder := r.buildPreloads(r.db, preloads...)
 	builder = r.buildOrderByLimitOffset(builder, orderBy, limit, offset)
-	err = builder.Where(r.buildWhereCondition(builder, field, value)).Find(&m).Error
+	builder = r.buildWhereCondition(builder, field, value)
+	err = builder.Find(&m).Error
 	return m, err
 }
 
@@ -437,7 +440,8 @@ func (r Repository[ModelType, PrimaryType]) GetAllByConditionsOrderByLimitOffset
 
 func (r Repository[ModelType, PrimaryType]) CountByField(field string, value any) (count int64, err error) {
 	builder := r.db.Model(&r.model)
-	if err = builder.Where(r.buildWhereCondition(builder, field, value)).Count(&count).Error; err != nil {
+	builder = r.buildWhereCondition(builder, field, value)
+	if err = builder.Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return count, nil
