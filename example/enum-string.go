@@ -55,7 +55,7 @@ func (t *EnumStringType[T]) IsAny(v EnumString[T], values ...EnumString[T]) bool
 // ---------- BSON ----------
 
 func (e EnumString[T]) MarshalBSONValue() (bsontype.Type, []byte, error) {
-	v, ok := e.String()
+	v, ok := e.GetValue()
 	if !ok {
 		return bson.TypeNull, nil, nil
 	}
