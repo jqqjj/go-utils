@@ -30,8 +30,7 @@ func (w *WorkerPool) Submit(ctx context.Context, fn func(ctx context.Context)) c
 		subCtx, cancelFn := context.WithCancel(ctx)
 		defer cancelFn()
 
-		chSub := make(chan PubSubChan[string, any])
-		w.pubSub.Subscribe(subCtx, "idle", chSub)
+		chSub := w.pubSub.Subscribe(subCtx, "idle")
 
 		for {
 			select {
