@@ -66,3 +66,12 @@ func SliceStructIndex[T any, K comparable](data []T, fieldName string) (map[K]T,
 	}
 	return result, nil
 }
+
+func SliceToAnySlice(v any) []any {
+	rv := reflect.ValueOf(v)
+	values := make([]any, 0, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		values = append(values, rv.Index(i).Interface())
+	}
+	return values
+}

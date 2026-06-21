@@ -479,7 +479,7 @@ func (r Repository[ModelType, PrimaryType]) buildWhereCondition(builder *gorm.DB
 		v, _ = valuer.Value()
 	}
 	if v == nil {
-		return builder.Where(fmt.Sprintf("`%s` IS NULL", k))
+		return builder.Where(clause.Eq{Column: k, Value: nil})
 	}
 
 	t := reflect.TypeOf(v)
@@ -487,12 +487,12 @@ func (r Repository[ModelType, PrimaryType]) buildWhereCondition(builder *gorm.DB
 	case reflect.Slice:
 		fallthrough
 	case reflect.Array:
-		builder = builder.Where(fmt.Sprintf("`%s` in ?", k), v)
+		builder = builder.Where(clause.IN{Column: k, Values: SliceToAnySlice(v)})
 	default:
 		if condition, ok := v.(clause.Expression); ok {
 			builder = builder.Where(condition)
 		} else {
-			builder = builder.Where(fmt.Sprintf("`%s`=?", k), v)
+			builder = builder.Where(clause.Eq{Column: k, Value: v})
 		}
 	}
 	return builder
