@@ -11,7 +11,7 @@ import (
 )
 
 type IRepositoryModel interface {
-	any
+	~struct{}
 	PrimaryKey() string
 }
 type iRepositoryPrimaryKey interface {
