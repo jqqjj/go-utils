@@ -7,41 +7,45 @@ import (
 
 type PipelineQueuerMemory[T any] struct {
 	mu       sync.Mutex
-	notifies map[string]chan struct{}
-	queues   map[string][]PipelineEntity[T]
+	notifies map[int]chan struct{}
+	queues   map[int][]T
 }
 
 func NewPipelineQueuerMemory[T any]() *PipelineQueuerMemory[T] {
 	return &PipelineQueuerMemory[T]{
-		notifies: make(map[string]chan struct{}),
-		queues:   make(map[string][]PipelineEntity[T]),
+		notifies: make(map[int]chan struct{}),
+		queues:   make(map[int][]T),
 	}
 }
 
-func (q *PipelineQueuerMemory[T]) Enqueue(queue string, job PipelineEntity[T]) error {
-	q.mu.Lock()
-
-	if _, ok := q.queues[queue]; !ok {
-		q.queues[queue] = make([]PipelineEntity[T], 0)
-	}
-	q.queues[queue] = append(q.queues[queue], job)
-
-	q.mu.Unlock()
-
-	q.notify(queue)
+func (q *PipelineQueuerMemory[T]) ACK(step int, entity T) error {
 	return nil
 }
 
-func (q *PipelineQueuerMemory[T]) Dequeue(ctx context.Context, queue string) (job PipelineEntity[T], err error) {
+func (q *PipelineQueuerMemory[T]) Enqueue(step int, entity T) error {
+	q.mu.Lock()
+
+	if _, ok := q.queues[step]; !ok {
+		q.queues[step] = make([]T, 0)
+	}
+	q.queues[step] = append(q.queues[step], entity)
+
+	q.mu.Unlock()
+
+	select {
+	case q.getNotify(step) <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+func (q *PipelineQueuerMemory[T]) Dequeue(ctx context.Context, step int) (entity T, err error) {
 	var ok bool
-	if job, ok, err = q.tryDequeue(queue); err != nil {
+	if entity, ok, err = q.tryDequeue(step); err != nil || ok {
 		return
 	}
-	if ok {
-		return job, nil
-	}
 
-	ch := q.getNotify(queue)
+	ch := q.getNotify(step)
 	for {
 		select {
 		case <-ctx.Done():
@@ -50,43 +54,29 @@ func (q *PipelineQueuerMemory[T]) Dequeue(ctx context.Context, queue string) (jo
 		case <-ch:
 		}
 
-		if job, ok, err = q.tryDequeue(queue); err != nil {
+		if entity, ok, err = q.tryDequeue(step); err != nil || ok {
 			return
-		}
-		if ok {
-			return job, nil
 		}
 	}
 }
 
-func (q *PipelineQueuerMemory[T]) tryDequeue(queue string) (job PipelineEntity[T], ok bool, err error) {
+func (q *PipelineQueuerMemory[T]) tryDequeue(step int) (entity T, ok bool, err error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	if _, ok = q.queues[queue]; ok && len(q.queues[queue]) > 0 {
-		job = q.queues[queue][0]
-		ok = true
-		q.queues[queue] = q.queues[queue][1:]
+	if _, ok = q.queues[step]; ok && len(q.queues[step]) > 0 {
+		entity, ok = q.queues[step][0], true
+		q.queues[step] = q.queues[step][1:]
 	}
-
 	return
 }
 
-func (q *PipelineQueuerMemory[T]) getNotify(queue string) chan struct{} {
+func (q *PipelineQueuerMemory[T]) getNotify(step int) chan struct{} {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	ch, ok := q.notifies[queue]
-	if !ok {
-		ch = make(chan struct{}, 1)
-		q.notifies[queue] = ch
+	if _, ok := q.notifies[step]; !ok {
+		q.notifies[step] = make(chan struct{}, 1)
 	}
-	return ch
-}
-
-func (q *PipelineQueuerMemory[T]) notify(queue string) {
-	select {
-	case q.getNotify(queue) <- struct{}{}:
-	default:
-	}
+	return q.notifies[step]
 }
