@@ -202,13 +202,10 @@ func (t *EnumIntType[T]) Parse(v int) (EnumInt[T], error) {
 	defer t.mu.RUnlock()
 
 	if _, ok := t.values[v]; !ok {
-		return EnumInt[T]{}, fmt.Errorf("invalid enum value: %d", v)
+		return EnumInt[T]{}, nil
 	}
 
-	return EnumInt[T]{
-		v:   v,
-		set: true,
-	}, nil
+	return EnumInt[T]{v: v, set: true}, nil
 }
 
 func (t *EnumIntType[T]) Members() []EnumInt[T] {
